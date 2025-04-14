@@ -6,36 +6,48 @@ const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
-// Ensure uploads directory exists outside the project folder
+// Upload directory (outside project folder)
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Allowed file extensions (images and videos including iPhone formats)
-const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi|mkv|hevc|webm/;
+// Allowed extensions and MIME types
+const allowedExtensions = /\.(jpeg|jpg|png|gif|mp4|mov|avi|mkv|hevc|webm)$/i;
+const allowedMimeTypes = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'video/mp4',
+  'video/quicktime',    // for .mov (HEVC or H.264)
+  'video/x-msvideo',    // for .avi
+  'video/x-matroska',   // for .mkv
+  'video/webm',
+  'video/hevc',         // some platforms may use this
+];
 
-// File filter to allow only specific media types
+// File filter
 const fileFilter = (req, file, cb) => {
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype.toLowerCase());
+  const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetypeAllowed = allowedMimeTypes.includes(file.mimetype.toLowerCase());
 
-  if (extname && mimetype) {
+  console.log(`📦 File: ${file.originalname} | MIME: ${file.mimetype}`); // Debug log
+
+  if (extname && mimetypeAllowed) {
     cb(null, true);
   } else {
-    cb(new Error('Only image and video files are allowed (e.g. .jpg, .png, .mp4, .mov, .hevc)'));
+    cb(new Error(`Unsupported file type: ${file.originalname}`));
   }
 };
 
-// Configure Multer storage
+// Multer storage config
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, `${uniqueSuffix}-${file.originalname}`);
-  }
+  },
 });
 
 const upload = multer({ storage, fileFilter });
@@ -43,26 +55,26 @@ const upload = multer({ storage, fileFilter });
 // Upload route
 app.post('/upload', upload.array('photo', 10000), (req, res) => {
   if (req.files && req.files.length > 0) {
-    res.send('Files uploaded successfully!');
-  } else {
-    res.status(400).send('Error: No files uploaded');
+    return res.status(200).send('Files uploaded successfully!');
   }
+  return res.status(400).send('Error: No files uploaded');
 });
 
-// Serve upload form (optional)
+// Serve HTML upload page (optional)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Global error handler for Multer
+// Global error handler
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || err.message.includes('Only image and video')) {
-    return res.status(400).send({ error: err.message });
+  if (err instanceof multer.MulterError || err.message.includes('Unsupported file type')) {
+    return res.status(400).json({ error: err.message });
   }
-  next(err);
+  console.error('Server Error:', err);
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
-// Start server
+// Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
