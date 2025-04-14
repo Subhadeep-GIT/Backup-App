@@ -14,9 +14,9 @@ export default function UploadScreen() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const pickImages = async () => {
+  const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow images and videos
       allowsMultipleSelection: true,
       quality: 1,
     });
@@ -30,10 +30,19 @@ export default function UploadScreen() {
     const formData = new FormData();
 
     files.forEach((file, index) => {
+      const fileExtension = file.uri.split('.').pop()?.toLowerCase() || 'bin';
+      let mimeType = '';
+
+      if (file.type === 'video') {
+        mimeType = fileExtension === 'mov' ? 'video/quicktime' : `video/${fileExtension}`;
+      } else {
+        mimeType = fileExtension === 'heic' ? 'image/heic' : `image/${fileExtension}`;
+      }
+
       formData.append('photo', {
         uri: file.uri,
-        name: `photo_${index}.jpg`,
-        type: 'image/jpeg',
+        name: `media_${index}.${fileExtension}`,
+        type: mimeType,
       } as any);
     });
 
@@ -68,21 +77,25 @@ export default function UploadScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Upload Photos for Backup</Text>
+      <Text style={styles.title}>Upload Media for Backup</Text>
 
-      <TouchableOpacity style={styles.uploadButton} onPress={pickImages}>
+      <TouchableOpacity style={styles.uploadButton} onPress={pickMedia}>
         <Ionicons name="cloud-upload-outline" size={24} color="white" />
-        <Text style={styles.buttonText}>Choose Photos</Text>
+        <Text style={styles.buttonText}>Choose Files</Text>
       </TouchableOpacity>
 
       {uploading && (
-        <>
-          <View style={styles.progressBarWrapper}>
-            <View style={[styles.progressBar, { width: `${progress}%` }]} />
-          </View>
-          <Text style={styles.progressText}>{progress}%</Text>
-        </>
-      )}
+  Platform.OS === 'ios' ? (
+    <ActivityIndicator size="large" color="#2563eb" />
+  ) : (
+    <>
+      <View style={styles.progressBarWrapper}>
+        <View style={[styles.progressBar, { width: `${progress}%` }]} />
+      </View>
+      <Text style={styles.progressText}>{progress}%</Text>
+    </>
+  )
+)}
     </View>
   );
 }
@@ -118,13 +131,13 @@ const styles = StyleSheet.create({
   progressBarWrapper: {
     width: '100%',
     height: 10,
-    backgroundColor: '#e5e7eb', // light gray
+    backgroundColor: '#e5e7eb',
     borderRadius: 5,
     marginTop: 24,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#2563eb', // blue
+    backgroundColor: '#2563eb',
     borderRadius: 5,
   },
   progressText: {
